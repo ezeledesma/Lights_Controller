@@ -50,6 +50,7 @@ void rainbow_cycle();
 void showStrip();
 void setPixel(int Pixel, byte red, byte green, byte blue);
 void setAll(byte red, byte green, byte blue);
+void test();
 
 // Variables de Estado
 #define REST 0
@@ -73,17 +74,18 @@ void setAll(byte red, byte green, byte blue);
 #define FIRE 17
 #define METEOR 18
 #define BOUNCING_BALLS 19
+#define TEST 100
 #define OFF 90
 
 // Variables Globales
-byte colorRGB[3] = {0, 0, 0};
-uint8_t state = REST;
+byte colorRGB[3] = {255, 0, 0};
+uint8_t state = SNAKE;
 boolean bFlag = false;
 
-uint8_t timer2_ticks = 10;                  // Frecuencia de actualizacion (1 ~ 1ms)
+uint8_t timer2_ticks = 20;                  // Frecuencia de actualizacion (1 ~ 1ms)
 uint16_t timer2_count = 0;
 boolean timer2_flag = false;
-
+boolean testflag = false;
 
 void setup() {
   delay(100);
@@ -122,18 +124,42 @@ ISR(TIMER2_OVF_vect) {
 
 void loop() {
   update_leds();
-  update_state();
   //update_entrys();
   update_bt();
+  update_state();
+  /*
+  Serial.print(" // STATE: ");
+  Serial.print(state);
+  Serial.print(" - BRIGTHNESS: ");
+  Serial.print(FastLED.getBrightness());
+  Serial.print(" - RED: ");
+  Serial.print(colorRGB[0]);
+  Serial.print(" - GREEN: ");
+  Serial.print(colorRGB[1]);
+  Serial.print(" - BLUE: ");
+  Serial.print(colorRGB[2]);
+  Serial.println("");
+  */
+}
+
+void test() {
+  static uint8_t j = 0;
+  while (j < NUM_LEDS) {
+    setPixel(j, 255, 255, 0);
+    j++;
+  }
 }
 
 void update_leds() {
+  if(!timer2_flag) return;
+  timer2_flag = false;
   switch (state) {
     case REST:
       state++;
       break;
     case STATIC_COLOR:
       setAll(colorRGB[0], colorRGB[1], colorRGB[2]);
+      break;
     case SNAKE:
       snake();
       break;
@@ -154,6 +180,9 @@ void update_leds() {
       break;
     case KITT:
       kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);
+      break;
+    case TEST:
+      test();
       break;
     default:
       state = REST;
@@ -189,9 +218,11 @@ void snake() {
   uint8_t i = 0;
   if (flag) {
     while (y < NUM_LEDS / 8) {
+      //setPixel(y, (y + 1) * 15, (y + 1) * 15, (y + 1) * 15);
       tira_r[y] = (y + 1) * 15;
       tira_g[y] = (y + 1) * 15;
       tira_b[y] = (y + 1) * 15;
+      setPixel(y, tira_r[y], tira_g[y], tira_b[y]);
       //Serial.print("WHILE 1 - ");
       //Serial.print("Y: ");
       //Serial.print(y);
@@ -204,9 +235,11 @@ void snake() {
       y++;
     }
     while (y < ((NUM_LEDS / 4) - 2) ) {
+      //setPixel(y, leds[y - 1].r - 15, leds[y - 1].g - 15, leds[y - 1].b - 15);
       tira_r[y] = tira_r[y - 1] - 15;
       tira_g[y] = tira_r[y - 1] - 15;
       tira_b[y] = tira_r[y - 1] - 15;
+      setPixel(y, tira_r[y], tira_g[y], tira_b[y]);
       //Serial.print("WHILE 2 - ");
       //Serial.print("Y: ");
       //Serial.print(y);
@@ -219,9 +252,10 @@ void snake() {
       y++;
     }
     while (y < NUM_LEDS) {
-      tira_r[y] = 15;
-      tira_g[y] = 15;
-      tira_b[y] = 15;
+      setPixel(y, 15, 15, 15);
+      //tira_r[y] = 15;
+      //tira_g[y] = 15;
+      //tira_b[y] = 15;
       //Serial.print("WHILE 3 - ");
       //Serial.print("Y: ");
       //Serial.print(y);
@@ -240,14 +274,18 @@ void snake() {
     uint8_t aux_g = tira_g[0];
     uint8_t aux_b = tira_b[0];
     while (i < (NUM_LEDS - 1)) {
+      //setPixel(i, leds[i + 1].r, leds[i + 1].g, leds[i + 1].b);
       tira_r[i] = tira_r[i + 1];
       tira_g[i] = tira_g[i + 1];
       tira_b[i] = tira_b[i + 1];
+      setPixel(i, tira_r[i], tira_g[i], tira_b[i]);
       i++;
     }
+    //setPixel(i, aux_r, aux_g, aux_b);
     tira_r[i] = aux_r;
     tira_g[i] = aux_g;
     tira_b[i] = aux_b;
+    setPixel(i, tira_r[i], tira_g[i], tira_b[i]);
     count = 0;
   }
   count++;
@@ -627,31 +665,65 @@ void cleanVar() {
 
 uint8_t bt = LEIDO;
 uint8_t change = 0;
+boolean change_flag = false;
+byte colorRGB_aux[3] = {};
+
 
 void update_bt() {
   while (btSerial.available()) {
     buff = btSerial.read();
+    /*Serial.print(" // BUFF: ");
+    Serial.print(buff);
+    Serial.println("");*/
     if (buff == '#') {
       code = "";
       bt = LEIDO;
     }
     else if (buff == '$') {
-      //Serial.print("Code: ");
-      //Serial.println(code);
+      Serial.print("Code: ");
+      Serial.println(code);
       bt = SIN_LEER;
-      if (change) {
-        bt = LEIDO;
-        change = 0;
-      }
       break;
     }
-    else if (buff == 'r') change = 1;
-    else if (buff == 'g') change = 2;
-    else if (buff == 'b') change = 3;
+    else if (buff == '%') {
+      if (change == 1) colorRGB[0] = colorRGB_aux[0];
+      else if (change == 2) colorRGB[1] = colorRGB_aux[1];
+      else if (change == 3) colorRGB[2] = colorRGB_aux[2];
+      change = 0;
+      change_flag = false;
+      break;
+    }
+    else if (change_flag) {
+      // error de datos
+      change_flag = false;
+      change = 0;
+      break;
+    }
+    else if (buff == 'r') {
+      change = 1;
+      break;
+    }
+    else if (buff == 'g') {
+      change = 2;
+      break;
+    }
+    else if (buff == 'b') {
+      change = 3;
+      break;
+    }
     else {
-      if (change == 1) colorRGB[0] = buff;
-      else if (change == 2) colorRGB[1] = buff;
-      else if (change == 3) colorRGB[2] = buff;
+      if (change == 1) {
+        colorRGB_aux[0] = buff;
+        change_flag = true;
+      }
+      else if (change == 2) {
+        colorRGB_aux[1] = buff;
+        change_flag = true;
+      }
+      else if (change == 3) {
+        colorRGB_aux[2] = buff;
+        change_flag = true;
+      }
       else code += buff;
     }
   }
@@ -661,30 +733,19 @@ void update_state() {
   if (bt == LEIDO) return;
   if (code == "off") state = OFF;
   else if (code == "es") state = STATIC_COLOR;
-  else if (code == "ar") state = RAINBOW;
+  else if (code == "a") state = RAINBOW;
   else if (code == "pi") state = SNAKE;
   else if (code == "li") state = MIRROR;
   else if (code == "of") state = KITT;
   else if (code == "st") state = ORBITAL;
-  else if (code == "b+") if (FastLED.getBrightness() <= 225) FastLED.setBrightness(FastLED.getBrightness() + 30);
-  else if (code == "b-") if (FastLED.getBrightness() >= 31)  FastLED.setBrightness(FastLED.getBrightness() - 30);
-  else if (code == "br") FastLED.setBrightness(255);
-  else if (code == "p-") if (timer2_ticks <= 45) timer2_ticks += 5;
-  else if (code == "p+") if (timer2_ticks >= 10) timer2_ticks -= 5;
-  else if (code == "pr") timer2_ticks = 10;
+  else if (code == "l+" && (FastLED.getBrightness() <= 225)) FastLED.setBrightness(FastLED.getBrightness() + 30);
+  else if (code == "l-" && (FastLED.getBrightness() >= 31)) FastLED.setBrightness(FastLED.getBrightness() - 30);
+  else if (code == "l0") FastLED.setBrightness(255);
+  else if (code == "p-" && (timer2_ticks <= 45)) timer2_ticks += 5;
+  else if (code == "p+" && (timer2_ticks >= 10)) timer2_ticks -= 5;
+  else if (code == "p0") timer2_ticks = 10;
   bt = LEIDO;
   cleanVar();
-  /*
-  Serial.print(" - State: ");
-  Serial.print(state);
-  Serial.print(" - RED: ");
-  Serial.print(colorRGB[0]);
-  Serial.print(" - GREEN: ");
-  Serial.print(colorRGB[1]);
-  Serial.print(" - BLUE: ");
-  Serial.print(colorRGB[2]);
-  Serial.println("");
-  */
   // Limpiar cartel?
 }
 
@@ -714,6 +775,9 @@ void setPixel(int Pixel, byte red, byte green, byte blue) {
   leds[Pixel].r = pgm_read_byte(&gamma8[red]);
   leds[Pixel].g = pgm_read_byte(&gamma8[green]);
   leds[Pixel].b = pgm_read_byte(&gamma8[blue]);
+  //leds[Pixel].r = red;
+  //leds[Pixel].g = green;
+  //leds[Pixel].b = blue;
 #endif
 }
 
@@ -721,7 +785,7 @@ void setAll(byte red, byte green, byte blue) {
   for (int i = 0; i < NUM_LEDS; i++ ) {
     setPixel(i, red, green, blue);
   }
-  showStrip();
+  //showStrip();
 }
 
 
