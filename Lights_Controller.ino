@@ -41,8 +41,8 @@ void update_bt();
 void update_state();
 void update_leds();
 void update_entrys();
+void fade_color(byte red, byte green, byte blue, byte vel);
 void snake(byte red, byte green, byte blue, byte background);
-void snake2();
 void mirror();
 void orbital(byte red, byte green, byte blue);
 void flash(byte red, byte green, byte blue);
@@ -81,6 +81,7 @@ void test();
 
 // Variables Globales
 byte colorRGB[3] = {255, 0, 0};
+byte ant_colorRGB[3] = {0, 0, 0};
 uint8_t state = SNAKE;
 boolean bFlag = false;
 
@@ -129,7 +130,7 @@ void loop() {
   //update_entrys();
   update_bt();
   update_state();
-  /*
+  
   Serial.print(" // STATE: ");
   Serial.print(state);
   Serial.print(" - BRIGTHNESS: ");
@@ -140,8 +141,14 @@ void loop() {
   Serial.print(colorRGB[1]);
   Serial.print(" - BLUE: ");
   Serial.print(colorRGB[2]);
+  Serial.print(" - REDant: ");
+  Serial.print(ant_colorRGB[0]);
+  Serial.print(" - GREENant: ");
+  Serial.print(ant_colorRGB[1]);
+  Serial.print(" - BLUEant: ");
+  Serial.print(ant_colorRGB[2]);
   Serial.println("");
-  */
+  
 }
 
 void test() {
@@ -161,6 +168,9 @@ void update_leds() {
       break;
     case STATIC_COLOR:
       setAll(colorRGB[0], colorRGB[1], colorRGB[2]);
+      break;
+    case FADE_COLOR:
+      fade_color(colorRGB[0], colorRGB[1], colorRGB[2], 5);
       break;
     case SNAKE:
       snake(colorRGB[0], colorRGB[1], colorRGB[2], 30);
@@ -209,11 +219,30 @@ void update_entrys () {
 }
 
 
-// static uint8_t
+// dejar estas variables hasta re hacer el codigo de todos los efectos
 byte tira_r[NUM_LEDS] = {};
 byte tira_g[NUM_LEDS] = {};
 byte tira_b[NUM_LEDS] = {};
 
+// FADE_COLOR
+// Posibles mejoras: transiciones mas fluidas, titileo con todo blanco?
+void fade_color(byte red, byte green, byte blue, byte vel) {
+  static byte red_aux = ant_colorRGB[0];
+  static byte green_aux = ant_colorRGB[1];
+  static byte blue_aux = ant_colorRGB[2];
+  for (uint16_t i = 0; i < vel; i++) {
+    if (red > red_aux) red_aux++;
+    else if (red < red_aux) red_aux--;
+    if (green > green_aux) green_aux++;
+    else if (green < green_aux) green_aux--;
+    if (blue > blue_aux) blue_aux++;
+    else if (blue < blue_aux) blue_aux--; 
+  }
+  setAll(red_aux, green_aux, blue_aux);
+}
+
+// SNAKE
+// Posibles mejoras: poder seleccionar para que lado ir, velocidad y ancho
 void snake(byte red, byte green, byte blue, byte background) {
   static uint16_t y = 0;
   static uint16_t newpos = 0;
@@ -247,46 +276,7 @@ void snake(byte red, byte green, byte blue, byte background) {
 uint8_t colorR[8] = {255, 255, 255, 0, 0, 255, 0};
 uint8_t colorG[8] = {255, 0, 255, 0, 255, 0, 255};
 uint8_t colorB[8] = {255, 0, 0, 255, 0, 255, 255};
-uint8_t s2R = 0;
-uint8_t s2G = 0;
-uint8_t s2B = 0;
-uint8_t fondoR = 15;
-uint8_t fondoG = 15;
-uint8_t fondoB = 15;
-uint8_t s2Sel = 0;
-uint8_t estado = 0;
-void snake2() {
-  // sin terminar
-  if (estado == 0) {
-    if (s2R < colorR[s2Sel]) s2R++;
-    if (s2G < colorR[s2Sel]) s2G++;
-    if (s2B < colorR[s2Sel]) s2B++;
-    if ( s2R == colorR[s2Sel] && s2G == colorG[s2Sel] && s2B == colorB[s2Sel] ) estado = 1;
-  }
-  else if (estado == 1) {
-    if (s2R) s2R--;
-    if (s2G) s2G--;
-    if (s2B) s2B--;
-    if ( !s2R && !s2G && !s2B ) estado = 2;
-  }
-  else if (estado == 2) {
-    s2R = fondoR;
-    s2G = fondoG;
-    s2B = fondoB;
-  }
 
-  tira_r[0] = s2R;
-  tira_g[0] = s2G;
-  tira_b[0] = s2B;
-  /*
-    i = NUM_LEDS-1;
-    while (i > 0) {
-      tira_r[i] = tira_r[i-1];
-      tira_g[i] = tira_g[i-1];
-      tira_b[i] = tira_b[i-1];
-      i--;
-    }*/
-}
 
 uint8_t mirrorPos = NUM_LEDS / 2;
 uint8_t mirrorColor[3] = {};
@@ -581,14 +571,6 @@ void cleanVar() {
   tira_r[NUM_LEDS] = {};
   tira_g[NUM_LEDS] = {};
   tira_b[NUM_LEDS] = {};
-  s2R = 0;
-  s2G = 0;
-  s2B = 0;
-  fondoR = 15;
-  fondoG = 15;
-  fondoB = 15;
-  s2Sel = 0;
-  estado = 0;
   mirrorPos = NUM_LEDS / 2;
   set = 0;
   mirrorDir = -1;
@@ -683,7 +665,7 @@ void update_state() {
   else if (code == "pi") state = SNAKE;
   else if (code == "li") state = MIRROR;
   else if (code == "of") state = KITT;
-  else if (code == "st") state = ORBITAL;
+  else if (code == "st") state = FADE_COLOR;
   else if (code == "l+" && (FastLED.getBrightness() <= 225)) FastLED.setBrightness(FastLED.getBrightness() + 30);
   else if (code == "l-" && (FastLED.getBrightness() >= 31)) FastLED.setBrightness(FastLED.getBrightness() - 30);
   else if (code == "l0") FastLED.setBrightness(255);
@@ -721,6 +703,11 @@ void setPixel(int Pixel, byte red, byte green, byte blue) {
   leds[Pixel].r = pgm_read_byte(&gamma8[red]);
   leds[Pixel].g = pgm_read_byte(&gamma8[green]);
   leds[Pixel].b = pgm_read_byte(&gamma8[blue]);
+  // EXPERIMENTAL
+  ant_colorRGB[0]=red;
+  ant_colorRGB[1]=green;
+  ant_colorRGB[2]=blue;
+  //
   //leds[Pixel].r = red;
   //leds[Pixel].g = green;
   //leds[Pixel].b = blue;
