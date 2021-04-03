@@ -1,3 +1,11 @@
+/* Optimizaciones:
+ *  1 - sacar todos los serial print
+ *  2 - cambiar el bt a un hardware serial
+ *  3 - cambiar variables a static y volatile
+ *  4 - mover codigo a archivos .c y .h
+ *  5 - debounce de boton con timers
+ */
+
 #include <SoftwareSerial.h>
 SoftwareSerial btSerial(10, 11); // Rx, Tx
 String code;
@@ -618,7 +626,8 @@ void setAll(byte red, byte green, byte blue) {
 
 uint8_t bt = LEIDO;
 uint8_t change = 0;
-
+uint8_t red = 0, green = 0, blue = 0;
+byte colorRGB[3] = {0, 0, 0};
 void update_bt() {
   uint8_t i = 0;
   while (btSerial.available()) {
@@ -636,12 +645,30 @@ void update_bt() {
       break;
     }
     else if (buff == 'c') {
+      change = 4;
+    }
+    else if (buff == 'r') {
       change = 1;
     }
+    else if (buff == 'g') {
+      change = 2;
+    }
+    else if (buff == 'b') {
+      change = 3;
+    }
     else {
-      if (change) {
+      if (change == 4) {
         color[i] = buff;
         i++;
+      }
+      else if (change == 1) {
+        colorRGB[0] = buff;
+      }
+      else if (change == 2) {
+        colorRGB[1] = buff;
+      }
+      else if (change == 3) {
+        colorRGB[2] = buff;
       }
       else {
         code += buff;
@@ -702,6 +729,12 @@ void update_state() {
   }
   Serial.print(" - State: ");
   Serial.print(state);
+  Serial.print(" - RED: ");
+  Serial.print(colorRGB[0]);
+  Serial.print(" - GREEN: ");
+  Serial.print(colorRGB[1]);
+  Serial.print(" - BLUE: ");
+  Serial.print(colorRGB[2]);
   Serial.println("");
   cleanVar();
   bt = LEIDO;
