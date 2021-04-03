@@ -6,6 +6,13 @@
  *  5 - debounce de boton con timers
  */
 
+/*  Autor: Ezequiel Ledesma
+ *  Fecha: 04/2021
+ *  MCU: Arduino Nano
+ *  Modulo BT: HC-05
+ */
+extern const uint8_t gamma8[];
+
 #include <SoftwareSerial.h>
 SoftwareSerial btSerial(10, 11); // Rx, Tx
 String code;
@@ -23,6 +30,8 @@ CRGB leds[NUM_LEDS];
 #define BUTTON 2
 
 // Inicializaciones
+void leds_init();
+void entrys_init();
 void timer2_init();
 // Funciones
 void cleanVar();
@@ -43,17 +52,32 @@ void setPixel(int Pixel, byte red, byte green, byte blue);
 void setAll(byte red, byte green, byte blue);
 
 // Variables de Estado
-#define SNAKE 0
-#define MIRROR 1
-#define ORBITAL 2
-#define FLASH 3
-#define RAINBOW 4
-#define RAINBOW_CYCLE 5
-#define KITT 6
+#define REST 0
+#define STATIC_COLOR 1
+#define FADE_COLOR 99
+#define SNAKE 2
+#define MIRROR 3
+#define ORBITAL 4
+#define FLASH 5
+#define RAINBOW 6
+#define RAINBOW_CYCLE 7
+#define KITT 8
+#define RGBLOOP 9
+#define FADEINOUT 10
+#define STROBE 11
+#define EYES 12
+#define TWINKLE 13
+#define SPARKLE 14
+#define RUNNING_LIGHTS 15
+#define THEATER_RAINBOW 16
+#define FIRE 17
+#define METEOR 18
+#define BOUNCING_BALLS 19
+#define OFF 90
 
 // Variables Globales
-uint8_t color[3] = {0, 0, 0};
-uint8_t state = SNAKE;
+byte colorRGB[3] = {0, 0, 0};
+uint8_t state = REST;
 boolean bFlag = false;
 
 uint8_t timer2_ticks = 10;                  // Frecuencia de actualizacion (1 ~ 1ms)
@@ -61,17 +85,23 @@ uint16_t timer2_count = 0;
 boolean timer2_flag = false;
 
 
-
 void setup() {
-  delay(1000);                              // Por las dudas
-  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(BRIGHTNESS);
-  pinMode(BUTTON, INPUT);
+  delay(100);
+  leds_init();
+  entrys_init();
   timer2_init();
   btSerial.begin(19200);
   Serial.begin(9600);                       // Serial monitor para debugging
 }
 
+void leds_init() {
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.setBrightness(BRIGHTNESS);
+}
+
+void entrys_init() {
+  pinMode(BUTTON, INPUT_PULLUP);  
+}
 
 void timer2_init() {
   SREG = (SREG & 0b01111111);              // Deshabilitar interrupciones globales
@@ -99,6 +129,11 @@ void loop() {
 
 void update_leds() {
   switch (state) {
+    case REST:
+      state++;
+      break;
+    case STATIC_COLOR:
+      setAll(colorRGB[0], colorRGB[1], colorRGB[2]);
     case SNAKE:
       snake();
       break;
@@ -106,10 +141,10 @@ void update_leds() {
       mirror();
       break;
     case ORBITAL:
-      orbital(0, 255, 255);
+      orbital(colorRGB[0], colorRGB[1], colorRGB[2]);
       break;
     case FLASH:
-      flash(255, 255, 255);
+      flash(colorRGB[0], colorRGB[1], colorRGB[2]);
       break;
     case RAINBOW:
       rainbow();
@@ -118,12 +153,13 @@ void update_leds() {
       rainbow_cycle();
       break;
     case KITT:
-      kitt(255, 0, 0, 5, 0);
+      kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);
       break;
     default:
-      state = 0;
+      state = REST;
       break;
   }
+  showStrip();
 }
 
 void update_entrys () {
@@ -549,7 +585,6 @@ void kitt (byte red, byte green, byte blue, byte eyeSize, uint8_t speedDelay) {
   Serial.print("- COUNT2: ");
   Serial.print(kittCount2);
   Serial.println();*/
-  showStrip();
 }
 
 void cleanVar() {
@@ -582,6 +617,78 @@ void cleanVar() {
   orbDel = 0;
 }
 
+
+/////////////////////
+// BT TRANSMISSION //
+/////////////////////
+
+#define LEIDO 0
+#define SIN_LEER 1
+
+uint8_t bt = LEIDO;
+uint8_t change = 0;
+
+void update_bt() {
+  while (btSerial.available()) {
+    buff = btSerial.read();
+    if (buff == '#') {
+      code = "";
+      bt = LEIDO;
+    }
+    else if (buff == '$') {
+      //Serial.print("Code: ");
+      //Serial.println(code);
+      bt = SIN_LEER;
+      if (change) {
+        bt = LEIDO;
+        change = 0;
+      }
+      break;
+    }
+    else if (buff == 'r') change = 1;
+    else if (buff == 'g') change = 2;
+    else if (buff == 'b') change = 3;
+    else {
+      if (change == 1) colorRGB[0] = buff;
+      else if (change == 2) colorRGB[1] = buff;
+      else if (change == 3) colorRGB[2] = buff;
+      else code += buff;
+    }
+  }
+}
+
+void update_state() {
+  if (bt == LEIDO) return;
+  if (code == "off") state = OFF;
+  else if (code == "es") state = STATIC_COLOR;
+  else if (code == "ar") state = RAINBOW;
+  else if (code == "pi") state = SNAKE;
+  else if (code == "li") state = MIRROR;
+  else if (code == "of") state = KITT;
+  else if (code == "st") state = ORBITAL;
+  else if (code == "b+") if (FastLED.getBrightness() <= 225) FastLED.setBrightness(FastLED.getBrightness() + 30);
+  else if (code == "b-") if (FastLED.getBrightness() >= 31)  FastLED.setBrightness(FastLED.getBrightness() - 30);
+  else if (code == "br") FastLED.setBrightness(255);
+  else if (code == "p-") if (timer2_ticks <= 45) timer2_ticks += 5;
+  else if (code == "p+") if (timer2_ticks >= 10) timer2_ticks -= 5;
+  else if (code == "pr") timer2_ticks = 10;
+  bt = LEIDO;
+  cleanVar();
+  /*
+  Serial.print(" - State: ");
+  Serial.print(state);
+  Serial.print(" - RED: ");
+  Serial.print(colorRGB[0]);
+  Serial.print(" - GREEN: ");
+  Serial.print(colorRGB[1]);
+  Serial.print(" - BLUE: ");
+  Serial.print(colorRGB[2]);
+  Serial.println("");
+  */
+  // Limpiar cartel?
+}
+
+
 /////////////
 // DRIVERS //
 /////////////
@@ -604,9 +711,9 @@ void setPixel(int Pixel, byte red, byte green, byte blue) {
 #endif
 #ifndef ADAFRUIT_NEOPIXEL_H
   // FastLED
-  leds[Pixel].r = red;
-  leds[Pixel].g = green;
-  leds[Pixel].b = blue;
+  leds[Pixel].r = pgm_read_byte(&gamma8[red]);
+  leds[Pixel].g = pgm_read_byte(&gamma8[green]);
+  leds[Pixel].b = pgm_read_byte(&gamma8[blue]);
 #endif
 }
 
@@ -617,126 +724,25 @@ void setAll(byte red, byte green, byte blue) {
   showStrip();
 }
 
-/////////////////////
-// BT TRANSMISSION //
-/////////////////////
 
-#define LEIDO 0
-#define SIN_LEER 1
+///////////////
+// Gamma Hue //
+///////////////
 
-uint8_t bt = LEIDO;
-uint8_t change = 0;
-uint8_t red = 0, green = 0, blue = 0;
-byte colorRGB[3] = {0, 0, 0};
-void update_bt() {
-  uint8_t i = 0;
-  while (btSerial.available()) {
-    buff = btSerial.read();
-    if (buff == '#') {
-      code = "";
-      bt = LEIDO;
-    }
-    else if (buff == '$') {
-      Serial.print("Code: ");
-      Serial.println(code);
-      bt = SIN_LEER;
-      if (i == 2 && change) bt = LEIDO;
-      if (change) change = 0;
-      break;
-    }
-    else if (buff == 'c') {
-      change = 4;
-    }
-    else if (buff == 'r') {
-      change = 1;
-    }
-    else if (buff == 'g') {
-      change = 2;
-    }
-    else if (buff == 'b') {
-      change = 3;
-    }
-    else {
-      if (change == 4) {
-        color[i] = buff;
-        i++;
-      }
-      else if (change == 1) {
-        colorRGB[0] = buff;
-      }
-      else if (change == 2) {
-        colorRGB[1] = buff;
-      }
-      else if (change == 3) {
-        colorRGB[2] = buff;
-      }
-      else {
-        code += buff;
-      }
-    }
-  }
-}
-
-void update_state() {
-  if (bt == LEIDO) return;
-  if (code == "ar") {
-    state = RAINBOW;
-  }
-  else if (code == "pi") {
-    state = SNAKE;
-  }
-  else if (code == "p-") {
-    if (timer2_ticks <= 45) {
-      timer2_ticks += 5;
-    }
-  }
-  else if (code == "p+") {
-    if (timer2_ticks >= 10) {
-      timer2_ticks -= 5;
-    }
-  }
-  else if (code == "pr") {
-    timer2_ticks = 10;
-  }
-  else if (code == "li") {
-    state = MIRROR;
-  }
-  else if (code == "of") {
-    state = KITT;
-  }
-  else if (code == "b+") {
-    if (FastLED.getBrightness() <= 225) {
-      FastLED.setBrightness(FastLED.getBrightness() + 30);
-    }
-    Serial.print(" - BRIGHTNESS: ");
-    Serial.println(FastLED.getBrightness());
-  }
-  else if (code == "b-") {
-    if (FastLED.getBrightness() >= 31) {
-      FastLED.setBrightness(FastLED.getBrightness() - 30);
-    }
-    Serial.print(" - BRIGHTNESS: ");
-    Serial.println(FastLED.getBrightness());
-  }
-  else if (code == "br") {
-    FastLED.setBrightness(255);
-  }
-  else if (code == "st") {
-    state = ORBITAL;
-  }
-  else if (code == "es") {
-    state = RAINBOW_CYCLE;
-  }
-  Serial.print(" - State: ");
-  Serial.print(state);
-  Serial.print(" - RED: ");
-  Serial.print(colorRGB[0]);
-  Serial.print(" - GREEN: ");
-  Serial.print(colorRGB[1]);
-  Serial.print(" - BLUE: ");
-  Serial.print(colorRGB[2]);
-  Serial.println("");
-  cleanVar();
-  bt = LEIDO;
-  // Limpiar cartel?
-}
+const uint8_t PROGMEM gamma8[] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+    2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+    5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
+   10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+   17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+   25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+   37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+   51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+   69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+   90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+  115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+  144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
