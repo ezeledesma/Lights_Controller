@@ -1,9 +1,11 @@
 /* Optimizaciones:
+ *  CRITICOS:
  *  1 - sacar todos los serial print
  *  2 - cambiar el bt a un hardware serial
- *  3 - cambiar variables a static y volatile
- *  4 - mover codigo a archivos .c y .h
- *  5 - debounce de boton con timers
+ *  LEVES:
+ *  1 - cambiar variables a static y volatile
+ *  2 - mover codigo a archivos .c y .h
+ *  3 - debounce de boton con timers
  */
 
 /*  Autor: Ezequiel Ledesma
@@ -39,11 +41,11 @@ void update_bt();
 void update_state();
 void update_leds();
 void update_entrys();
-void snake();
+void snake(byte red, byte green, byte blue, byte background);
 void snake2();
 void mirror();
-void orbital(uint8_t red, uint8_t green, uint8_t blue);
-void flash(uint8_t red, uint8_t green, uint8_t blue);
+void orbital(byte red, byte green, byte blue);
+void flash(byte red, byte green, byte blue);
 void rainbow();
 void rainbow_cycle();
 // Drivers
@@ -55,27 +57,27 @@ void test();
 // Variables de Estado
 #define REST 0
 #define STATIC_COLOR 1
-#define FADE_COLOR 99
-#define SNAKE 2
-#define MIRROR 3
-#define ORBITAL 4
-#define FLASH 5
-#define RAINBOW 6
-#define RAINBOW_CYCLE 7
-#define KITT 8
-#define RGBLOOP 9
-#define FADEINOUT 10
-#define STROBE 11
-#define EYES 12
-#define TWINKLE 13
-#define SPARKLE 14
-#define RUNNING_LIGHTS 15
-#define THEATER_RAINBOW 16
-#define FIRE 17
-#define METEOR 18
-#define BOUNCING_BALLS 19
-#define TEST 100
+#define FADE_COLOR 2
+#define SNAKE 3
+#define MIRROR 4
+#define ORBITAL 5
+#define FLASH 6
+#define RAINBOW 7
+#define RAINBOW_CYCLE 8
+#define KITT 9
+#define RGBLOOP 10
+#define FADEINOUT 11
+#define STROBE 12
+#define EYES 13
+#define TWINKLE 14
+#define SPARKLE 15
+#define RUNNING_LIGHTS 16
+#define THEATER_RAINBOW 17
+#define FIRE 18
+#define METEOR 19
+#define BOUNCING_BALLS 20
 #define OFF 90
+#define TEST 100
 
 // Variables Globales
 byte colorRGB[3] = {255, 0, 0};
@@ -161,7 +163,7 @@ void update_leds() {
       setAll(colorRGB[0], colorRGB[1], colorRGB[2]);
       break;
     case SNAKE:
-      snake();
+      snake(colorRGB[0], colorRGB[1], colorRGB[2], 30);
       break;
     case MIRROR:
       mirror();
@@ -180,6 +182,9 @@ void update_leds() {
       break;
     case KITT:
       kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);
+      break;
+    case OFF:
+      setAll(0, 0, 0);
       break;
     case TEST:
       test();
@@ -205,90 +210,37 @@ void update_entrys () {
 
 
 // static uint8_t
-uint8_t snakePos = 0;
-uint8_t snakeR, snakeG, snakeB;
-uint8_t flag = 1;
-uint8_t y = 0;
-uint8_t tira_r[NUM_LEDS] = {};
-uint8_t tira_g[NUM_LEDS] = {};
-uint8_t tira_b[NUM_LEDS] = {};
-uint8_t count = 0;
+byte tira_r[NUM_LEDS] = {};
+byte tira_g[NUM_LEDS] = {};
+byte tira_b[NUM_LEDS] = {};
 
-void snake() {
-  uint8_t i = 0;
-  if (flag) {
-    while (y < NUM_LEDS / 8) {
-      //setPixel(y, (y + 1) * 15, (y + 1) * 15, (y + 1) * 15);
-      tira_r[y] = (y + 1) * 15;
-      tira_g[y] = (y + 1) * 15;
-      tira_b[y] = (y + 1) * 15;
-      setPixel(y, tira_r[y], tira_g[y], tira_b[y]);
-      //Serial.print("WHILE 1 - ");
-      //Serial.print("Y: ");
-      //Serial.print(y);
-      //Serial.print("- Tira R: ");
-      //Serial.print(tira_r[y]);
-      //Serial.print("- Tira G: ");
-      //Serial.print(tira_g[y]);
-      //Serial.print("- Tira B: ");
-      //Serial.println(tira_b[y]);
-      y++;
-    }
-    while (y < ((NUM_LEDS / 4) - 2) ) {
-      //setPixel(y, leds[y - 1].r - 15, leds[y - 1].g - 15, leds[y - 1].b - 15);
-      tira_r[y] = tira_r[y - 1] - 15;
-      tira_g[y] = tira_r[y - 1] - 15;
-      tira_b[y] = tira_r[y - 1] - 15;
-      setPixel(y, tira_r[y], tira_g[y], tira_b[y]);
-      //Serial.print("WHILE 2 - ");
-      //Serial.print("Y: ");
-      //Serial.print(y);
-      //Serial.print("- Tira R: ");
-      //Serial.print(tira_r[y]);
-      //Serial.print("- Tira G: ");
-      //Serial.print(tira_g[y]);
-      //Serial.print("- Tira B: ");
-      //Serial.println(tira_b[y]);
-      y++;
-    }
-    while (y < NUM_LEDS) {
-      setPixel(y, 15, 15, 15);
-      //tira_r[y] = 15;
-      //tira_g[y] = 15;
-      //tira_b[y] = 15;
-      //Serial.print("WHILE 3 - ");
-      //Serial.print("Y: ");
-      //Serial.print(y);
-      //Serial.print("- Tira R: ");
-      //Serial.print(tira_r[y]);
-      //Serial.print("- Tira G: ");
-      //Serial.print(tira_g[y]);
-      //Serial.print("- Tira B: ");
-      //Serial.println(tira_b[y]);
-      y++;
-    }
-    flag = 0;
+void snake(byte red, byte green, byte blue, byte background) {
+  static uint16_t y = 0;
+  static uint16_t newpos = 0;
+  y = 0;
+  while ( y < (NUM_LEDS/8) ) {
+    setPixel((y+newpos)%NUM_LEDS,
+             red*(y+1)*((byte)(NUM_LEDS/8))/255,
+             green*(y+1)*((byte)(NUM_LEDS/8))/255,
+             blue*(y+1)*((byte)(NUM_LEDS/8))/255);
+    y++;
   }
-  if (count > 3) {
-    uint8_t aux_r = tira_r[0];
-    uint8_t aux_g = tira_g[0];
-    uint8_t aux_b = tira_b[0];
-    while (i < (NUM_LEDS - 1)) {
-      //setPixel(i, leds[i + 1].r, leds[i + 1].g, leds[i + 1].b);
-      tira_r[i] = tira_r[i + 1];
-      tira_g[i] = tira_g[i + 1];
-      tira_b[i] = tira_b[i + 1];
-      setPixel(i, tira_r[i], tira_g[i], tira_b[i]);
-      i++;
-    }
-    //setPixel(i, aux_r, aux_g, aux_b);
-    tira_r[i] = aux_r;
-    tira_g[i] = aux_g;
-    tira_b[i] = aux_b;
-    setPixel(i, tira_r[i], tira_g[i], tira_b[i]);
-    count = 0;
+  while ( y < ((NUM_LEDS / 4) - 2) ) {
+    setPixel((y+newpos)%NUM_LEDS,
+              red*(((NUM_LEDS / 4) - 2)-y+1)*((byte)(NUM_LEDS/8))/255,
+              green*(((NUM_LEDS / 4) - 2)-y+1)*((byte)(NUM_LEDS/8))/255,
+              blue*(((NUM_LEDS / 4) - 2)-y+1)*((byte)(NUM_LEDS/8))/255);
+    y++;
   }
-  count++;
+  while (y < NUM_LEDS) {
+    setPixel((y+newpos)%NUM_LEDS,
+              (byte)(red*background/100),
+              (byte)(green*background/100),
+              (byte)(blue*background/100));
+    y++;
+  }
+  newpos++;
+  newpos%=NUM_LEDS;
 }
 
 
@@ -626,12 +578,6 @@ void kitt (byte red, byte green, byte blue, byte eyeSize, uint8_t speedDelay) {
 }
 
 void cleanVar() {
-  snakePos = 0;
-  snakeR = 0;
-  snakeG = 0;
-  snakeB = 0;
-  flag = 1;
-  y = 0;
   tira_r[NUM_LEDS] = {};
   tira_g[NUM_LEDS] = {};
   tira_b[NUM_LEDS] = {};
