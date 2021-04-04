@@ -5,14 +5,18 @@
  *  LEVES:
  *  1 - cambiar variables a static y volatile
  *  2 - mover codigo a archivos .c y .h
- *  3 - debounce de boton con timers
+ *  3 - debounce de boton con timers?
+ *  4 - mejorar la decodificacion de la comunicacion bt
  */
 
 /*  Autor: Ezequiel Ledesma
  *  Fecha: 04/2021
  *  MCU: Arduino Nano
  *  Modulo BT: HC-05
+ *  
+ *  Notas: Funciona con libreria FastLED (o Adafruit Neopixel agregando mas codigo)
  */
+
 extern const uint8_t gamma8[];
 
 #include <SoftwareSerial.h>
@@ -52,7 +56,7 @@ void update_rainbow(byte *red, byte *green, byte *blue);
 void rainbow(byte vel = 5);
 void rainbow_cycle(byte colorVel = 1, byte moveVel = 0);
 void mirror();
-void flash(byte red, byte green, byte blue);
+void flash(byte red, byte green, byte blue, byte flashON = 2, byte flashOFF = 1, byte times = 5, byte timeOFF = 50);
 
 
 // Drivers
@@ -88,7 +92,7 @@ void setAll(byte red, byte green, byte blue);
 // Variables Globales
 byte colorRGB[3] = {255, 0, 0};
 byte ant_colorRGB[3] = {0, 0, 0};
-uint8_t state = RAINBOW_CYCLE;
+uint8_t state = ORBITAL_1;
 uint8_t timer2_ticks = 20;                  // Frecuencia de actualizacion (1 ~ 1ms)
 uint16_t timer2_count = 0;
 boolean timer2_flag = false;
@@ -104,8 +108,17 @@ void setup() {
 
 
 void leds_init() {
+ #ifdef ADAFRUIT_NEOPIXEL_H
+   // NeoPixel
+   strip.begin();
+   strip.setBrightness(BRIGHTNESS);
+   strip.show();
+ #endif
+ #ifndef ADAFRUIT_NEOPIXEL_H
+   // FastLED
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness(BRIGHTNESS);
+ #endif
 }
 
 
@@ -131,7 +144,7 @@ void loop() {
   update_leds();
   update_bt();
   update_state();
-  
+  /*  
   Serial.print(" // STATE: ");
   Serial.print(state);
   Serial.print(" - BRIGTHNESS: ");
@@ -149,7 +162,7 @@ void loop() {
   Serial.print(" - BLUEant: ");
   Serial.print(ant_colorRGB[2]);
   Serial.println("");
-  
+  */
 }
 
 
@@ -170,10 +183,10 @@ void update_leds() {
       orbital_1(colorRGB[0], colorRGB[1], colorRGB[2], 30);
       break;
     case ORBITAL_2:
-      orbital_2(colorRGB[0], colorRGB[1], colorRGB[2]);
+      orbital_2(colorRGB[0], colorRGB[1], colorRGB[2]);       // falta
       break;
     case MIRROR:
-      mirror();
+      mirror();                                               // falta
       break;
     case FLASH:
       flash(colorRGB[0], colorRGB[1], colorRGB[2]);
@@ -182,10 +195,10 @@ void update_leds() {
       rainbow();
       break;
     case RAINBOW_CYCLE:
-      rainbow_cycle(13, 1);
+      rainbow_cycle(13, 2);
       break;
     case KITT:
-      kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);
+      kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);      // falta
       break;
     case OFF:
       setAll(0, 0, 0);
@@ -368,41 +381,36 @@ void mirror() {
 
 
 
-uint8_t fCont = 0;
-uint8_t fState = 0;
-#define FLASH_ON 10
-#define FLASH_OFF 5
-uint8_t fRed = 0;
-uint8_t fGreen = 0;
-uint8_t fBlue = 0;
-
-void flash(uint8_t red, uint8_t green, uint8_t blue) {
-  if (fState == 0) {
-    fRed = red;
-    fGreen = green;
-    fBlue = blue;
-    fCont++;
-    if (fCont == FLASH_ON) {
-      fCont = 0;
-      fState = 1;
+// FLASH
+// Posibles mejoras: mejores opciones para flashON y flashOFF, times y timeOff valores altos tardan mucho
+void flash(uint8_t red, uint8_t green, uint8_t blue, byte flashON, byte flashOFF, byte times, byte timeOFF) {
+  static byte flash_state = 0;
+  static uint16_t flash_count = 0;
+  static uint16_t times_count = 0;
+  if (times_count == times) {
+    if (flash_count == timeOFF) {
+      flash_count = 0;
+      times_count = 0;
+    }
+    flash_count++;
+    return;
+  }
+  if (flash_state == 0) {
+    setAll(red, green, blue);
+    flash_count++;
+    if (flash_count == flashON) {
+      flash_count = 0;
+      flash_state = 1;
     }
   }
-  else if (fState == 1) {
-    fRed = 0;
-    fGreen = 0;
-    fBlue = 0;
-    fCont++;
-    if (fCont == FLASH_OFF) {
-      fCont = 0;
-      fState = 0;
+  else if (flash_state == 1) {
+    setAll(0, 0, 0);
+    flash_count++;
+    if (flash_count == flashOFF) {
+      flash_count = 0;
+      flash_state = 0;
+      times_count++;
     }
-  }
-  i = 0;
-  while (i < NUM_LEDS) {
-    tira_r[i] = fRed;
-    tira_g[i] = fGreen;
-    tira_b[i] = fBlue;
-    i++;
   }
 }
 
@@ -564,14 +572,12 @@ void cleanVar() {
 
 #define LEIDO 0
 #define SIN_LEER 1
-
 uint8_t bt = LEIDO;
-uint8_t change = 0;
-boolean change_flag = false;
-byte colorRGB_aux[3] = {};
-
 
 void update_bt() {
+  static uint8_t change = 0;
+  static boolean change_flag = false;
+  static byte colorRGB_aux[3] = {};
   while (btSerial.available()) {
     buff = btSerial.read();
     /*Serial.print(" // BUFF: ");
@@ -635,13 +641,14 @@ void update_state() {
   if (bt == LEIDO) return;
   if (code == "off") state = OFF;
   else if (code == "es") state = STATIC_COLOR;
+  else if (code == "fc") state = FADE_COLOR;
   else if (code == "as") state = RAINBOW;
   else if (code == "ac") state = RAINBOW_CYCLE;
   else if (code == "o1") state = ORBITAL_1;
   else if (code == "o2") state = ORBITAL_2;
   else if (code == "mi") state = MIRROR;
   else if (code == "kt") state = KITT;
-  else if (code == "fc") state = FADE_COLOR;
+  else if (code == "fs") state = FLASH;
   else if (code == "l+" && (FastLED.getBrightness() <= 225)) FastLED.setBrightness(FastLED.getBrightness() + 30);
   else if (code == "l-" && (FastLED.getBrightness() >= 31)) FastLED.setBrightness(FastLED.getBrightness() - 30);
   else if (code == "l0") FastLED.setBrightness(255);
@@ -650,7 +657,6 @@ void update_state() {
   else if (code == "p0") timer2_ticks = 10;
   bt = LEIDO;
   cleanVar();
-  // Limpiar cartel?
 }
 
 
@@ -659,42 +665,40 @@ void update_state() {
 /////////////
 
 void showStrip() {
-#ifdef ADAFRUIT_NEOPIXEL_H
-  // NeoPixel
-  strip.show();
-#endif
-#ifndef ADAFRUIT_NEOPIXEL_H
-  // FastLED
-  FastLED.show();
-#endif
+  #ifdef ADAFRUIT_NEOPIXEL_H
+    // NeoPixel
+    strip.show();
+  #endif
+  #ifndef ADAFRUIT_NEOPIXEL_H
+    // FastLED
+    FastLED.show();
+  #endif
 }
 
 void setPixel(int Pixel, byte red, byte green, byte blue) {
-#ifdef ADAFRUIT_NEOPIXEL_H
-  // NeoPixel
-  strip.setPixelColor(Pixel, strip.Color(red, green, blue));
-#endif
-#ifndef ADAFRUIT_NEOPIXEL_H
-  // FastLED
-  leds[Pixel].r = pgm_read_byte(&gamma8[red]);
-  leds[Pixel].g = pgm_read_byte(&gamma8[green]);
-  leds[Pixel].b = pgm_read_byte(&gamma8[blue]);
-  // EXPERIMENTAL
+  #ifdef ADAFRUIT_NEOPIXEL_H
+    // NeoPixel
+    strip.setPixelColor(Pixel, strip.Color(pgm_read_byte(&gamma8[red]), pgm_read_byte(&gamma8[green]), pgm_read_byte(&gamma8[blue])));
+  #endif
+  #ifndef ADAFRUIT_NEOPIXEL_H
+    // FastLED
+    leds[Pixel].r = pgm_read_byte(&gamma8[red]);
+    leds[Pixel].g = pgm_read_byte(&gamma8[green]);
+    leds[Pixel].b = pgm_read_byte(&gamma8[blue]);
+  #endif
+  //////////////////
+  // EXPERIMENTAL //
+  //////////////////
+  //**Para poder utilizar cambio de colores con fade**//
   ant_colorRGB[0]=red;
   ant_colorRGB[1]=green;
   ant_colorRGB[2]=blue;
-  //
-  //leds[Pixel].r = red;
-  //leds[Pixel].g = green;
-  //leds[Pixel].b = blue;
-#endif
 }
 
 void setAll(byte red, byte green, byte blue) {
   for (int i = 0; i < NUM_LEDS; i++ ) {
     setPixel(i, red, green, blue);
   }
-  //showStrip();
 }
 
 
