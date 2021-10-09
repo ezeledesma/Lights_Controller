@@ -14,7 +14,7 @@
  *  MCU: Arduino Nano
  *  Modulo BT: HC-05
  *  
- *  Notas: Funciona con libreria FastLED (o Adafruit Neopixel agregando mas codigo)
+ *  Notas: Funciona con libreria FastLED o Adafruit Neopixel
  */
 
 extern const uint8_t gamma8[];
@@ -53,17 +53,18 @@ void fade_color(byte red, byte green, byte blue, byte vel);
 void orbital_1(byte red, byte green, byte blue, byte background);
 void orbital_2(byte red, byte green, byte blue);
 void update_rainbow(byte *red, byte *green, byte *blue);
-void rainbow(byte vel = 5);
+void rainbow(byte vel = 5, byte del = 1);
 void rainbow_cycle(byte colorVel = 1, byte moveVel = 0);
 void mirror();
 void flash(byte red, byte green, byte blue, byte flashON = 2, byte flashOFF = 1, byte times = 5, byte timeOFF = 50);
-
+void kitt (byte red, byte green, byte blue, byte LEN = 6, uint8_t speedDelay = 0, uint8_t vel = 1);
 
 // Drivers
 void showStrip();
 void setPixel(int Pixel, byte red, byte green, byte blue);
 void setAll(byte red, byte green, byte blue);
-
+byte get_brightness();
+void set_brightness(byte brightness);
 
 // Variables de Estado
 #define REST 0
@@ -92,10 +93,16 @@ void setAll(byte red, byte green, byte blue);
 // Variables Globales
 byte colorRGB[3] = {255, 0, 0};
 byte ant_colorRGB[3] = {0, 0, 0};
-uint8_t state = ORBITAL_1;
-uint8_t timer2_ticks = 20;                  // Frecuencia de actualizacion (1 ~ 1ms)
+uint8_t state = REST;
+uint8_t timer2_ticks = 10;                  // Frecuencia de actualizacion (1 ~ 1ms)
 uint16_t timer2_count = 0;
 boolean timer2_flag = false;
+
+
+#ifdef ADAFRUIT_NEOPIXEL_H
+ // NeoPixel
+ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN_LEDS, NEO_GRB + NEO_KHZ800);
+#endif
 
 
 void setup() {
@@ -144,23 +151,16 @@ void loop() {
   update_leds();
   update_bt();
   update_state();
-  /*  
-  Serial.print(" // STATE: ");
-  Serial.print(state);
-  Serial.print(" - BRIGTHNESS: ");
-  Serial.print(FastLED.getBrightness());
-  Serial.print(" - RED: ");
-  Serial.print(colorRGB[0]);
-  Serial.print(" - GREEN: ");
-  Serial.print(colorRGB[1]);
-  Serial.print(" - BLUE: ");
-  Serial.print(colorRGB[2]);
-  Serial.print(" - REDant: ");
-  Serial.print(ant_colorRGB[0]);
-  Serial.print(" - GREENant: ");
-  Serial.print(ant_colorRGB[1]);
-  Serial.print(" - BLUEant: ");
-  Serial.print(ant_colorRGB[2]);
+    
+  Serial.print(" // STATE: "); Serial.println(state);
+  /*
+  Serial.print(" - BRIGTHNESS: "); Serial.print(FastLED.getBrightness());
+  Serial.print(" - RED: "); Serial.print(colorRGB[0]);
+  Serial.print(" - GREEN: "); Serial.print(colorRGB[1]);
+  Serial.print(" - BLUE: "); Serial.print(colorRGB[2]);
+  Serial.print(" - REDant: "); Serial.print(ant_colorRGB[0]);
+  Serial.print(" - GREENant: "); Serial.print(ant_colorRGB[1]);
+  Serial.print(" - BLUEant: "); Serial.print(ant_colorRGB[2]);
   Serial.println("");
   */
 }
@@ -198,7 +198,7 @@ void update_leds() {
       rainbow_cycle(13, 2);
       break;
     case KITT:
-      kitt(colorRGB[0], colorRGB[1], colorRGB[2], 5, 0);      // falta
+      kitt(colorRGB[0], colorRGB[1], colorRGB[2], 6, 0, 1);
       break;
     case OFF:
       setAll(0, 0, 0);
@@ -216,8 +216,9 @@ byte tira_r[NUM_LEDS] = {};
 byte tira_g[NUM_LEDS] = {};
 byte tira_b[NUM_LEDS] = {};
 
+
 // FADE_COLOR
-// Posibles mejoras: transiciones mas fluidas, titileo con todo blanco?
+// Posibles mejoras: transiciones mas fluidas
 void fade_color(byte red, byte green, byte blue, byte vel) {
   static byte red_aux = ant_colorRGB[0];
   static byte green_aux = ant_colorRGB[1];
@@ -233,24 +234,25 @@ void fade_color(byte red, byte green, byte blue, byte vel) {
   setAll(red_aux, green_aux, blue_aux);
 }
 
+
 // ORBITAL_1
-// Posibles mejoras: poder seleccionar para que lado ir, velocidad, ancho y las puntas de la orbital no coinciden con el background
+// Posibles mejoras: poder seleccionar para que lado ir, velocidad y ancho
 void orbital_1(byte red, byte green, byte blue, byte background) {
   static uint16_t y = 0;
   static uint16_t newpos = 0;
   y = 0;
   while ( y < (NUM_LEDS/8) ) {
     setPixel((y+newpos)%NUM_LEDS,
-             red*(y+1)*((byte)(NUM_LEDS/8))/255,
-             green*(y+1)*((byte)(NUM_LEDS/8))/255,
-             blue*(y+1)*((byte)(NUM_LEDS/8))/255);
+             (byte)(red*background/100) + (red-(byte)(red*background/100))*(y+1)/(NUM_LEDS/8),
+             (byte)(green*background/100) + (green-(byte)(green*background/100))*(y+1)/(NUM_LEDS/8),
+             (byte)(blue*background/100) + (blue-(byte)(blue*background/100))*(y+1)/(NUM_LEDS/8));
     y++;
   }
   while ( y < ((NUM_LEDS/4)-2) ) {
     setPixel((y+newpos)%NUM_LEDS,
-              red*(((NUM_LEDS/4)-2)-y+1)*((byte)(NUM_LEDS/8))/255,
-              green*(((NUM_LEDS/4)-2)-y+1)*((byte)(NUM_LEDS/8))/255,
-              blue*(((NUM_LEDS/4)-2)-y+1)*((byte)(NUM_LEDS/8))/255);
+              red - (red-(byte)(red*background/100))*(y+1)/((NUM_LEDS/4)-2),
+              green - (green-(byte)(green*background/100))*(y+1)/((NUM_LEDS/4)-2),
+              blue - (blue-(byte)(blue*background/100))*(y+1)/((NUM_LEDS/4)-2));
     y++;
   }
   while (y < NUM_LEDS) {
@@ -332,11 +334,6 @@ void orbital_2(uint8_t red, uint8_t green, uint8_t blue) {
 }
 
 
-uint8_t colorR[8] = {255, 255, 255, 0, 0, 255, 0};
-uint8_t colorG[8] = {255, 0, 255, 0, 255, 0, 255};
-uint8_t colorB[8] = {255, 0, 0, 255, 0, 255, 255};
-
-
 uint8_t mirrorPos = NUM_LEDS / 2;
 uint8_t mirrorColor[3] = {};
 uint8_t set = 0;
@@ -345,6 +342,14 @@ uint8_t coloresG[] = {0, 255, 0, 255, 255, 0};
 uint8_t coloresB[] = {0, 0, 255, 0, 255, 255};
 int8_t mirrorDir = -1;
 void mirror() {
+  static uint16_t mirrorPos = 0;
+  //(byte)NUM_LEDS/2;
+  /*
+  if (mirrorPos < (byte)NUM_LEDS/2) {
+    for (uint16_t i = 0; i <
+  }*/
+  
+  
   if (mirrorPos > 0 && mirrorPos <= NUM_LEDS / 2) {
     tira_r[mirrorPos] = mirrorColor[0];
     tira_g[mirrorPos] = mirrorColor[1];
@@ -416,19 +421,22 @@ void flash(uint8_t red, uint8_t green, uint8_t blue, byte flashON, byte flashOFF
 
 
 // RAINBOW
-void rainbow(byte vel) {
+void rainbow(byte vel, byte del) {
+  static uint8_t rainbow_del = 0;
+  if(rainbow_del < del) {
+    rainbow_del++;
+    return;
+  }
+  rainbow_del = 0;
   static byte red = 0, green = 0, blue = 0;
   for (uint16_t i = 0; i < vel; i++) {
      update_rainbow(&red, &green, &blue);
-     /*Serial.println("");
-     Serial.print("red pointer");
-     Serial.print(red);
-     Serial.println("");*/
   }
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
     setPixel(i, red, green, blue);
   }
 }
+
 
 // UPDATE_RAINBOW
 void update_rainbow(byte *red, byte *green, byte *blue) {
@@ -465,6 +473,7 @@ void update_rainbow(byte *red, byte *green, byte *blue) {
   }
 }
 
+
 // RANBOW_CYCLE
 // Posibles mejoras: fluidez de velocidad y movimiento
 void rainbow_cycle(byte colorVel, byte moveVel) {
@@ -484,69 +493,119 @@ void rainbow_cycle(byte colorVel, byte moveVel) {
   }
 }
 
-byte kittState = 0;
-byte kittCount = 0;
-byte kittCount2 = 0;
-void kitt (byte red, byte green, byte blue, byte eyeSize, uint8_t speedDelay) {
-  if (kittState == 0) { // RIGHT TO LEFT
-    if (kittCount < eyeSize) {
-      kittCount++;
-      setPixel(0, red, green, blue);
+
+// Lineas tipo KITT
+void kitt (byte red, byte green, byte blue, byte LEN, uint8_t speedDelay, uint8_t vel) {
+  #define RIGHT 0
+  #define LEFT 1
+  #define MIDDLE 2
+  //#define LEN 6
+  #define REP 1
+  static uint8_t p3_state = RIGHT;
+  static int16_t l_count = 0;
+  static int16_t i = 0;
+  static uint8_t kitt_del = 0;
+for(uint8_t x = 0; x < vel; x++) {
+  if(kitt_del < speedDelay) {
+    kitt_del++;
+    return;
+  }
+  else kitt_del = 0;
+  if(p3_state == RIGHT) {
+    if(i < (NUM_LEDS)) {
+      for(int16_t j = 0; j < LEN; j++) {
+        if((i-j)>=0) {
+          setPixel(i-j, red, green, blue);
+        }
+        if((i-j-1)>=0) {
+          setPixel(i-j-1, 0, 0, 0);
+        }
+      }
+      i++;
     }
     else {
-      setPixel(0, 0, 0, 0);
-    }
-    for (byte i = NUM_LEDS - 1; i > 0; i--) {
-      leds[i].r = leds[i - 1].r;
-      leds[i].g = leds[i - 1].g;
-      leds[i].b = leds[i - 1].b;
-    }
-    kittCount2++;
-    if (kittCount2 == NUM_LEDS) {
-      kittCount2 = 0;
-      kittState = 1;
+      p3_state = LEFT;
+      i-=LEN;
     }
   }
-  else if (kittState == 1) {
-    for (byte i = 0; i < NUM_LEDS - 1; i++) {
-      leds[i].r = leds[i + 1].r;
-      leds[i].g = leds[i + 1].g;
-      leds[i].b = leds[i + 1].b;
+  else if (p3_state == LEFT) {
+    if(i >= 0) {
+      for(int16_t j = 0; j < LEN; j++) {
+        if((i+j)<NUM_LEDS) {
+          setPixel(i+j, red, green, blue);
+        }
+        if((i+j+1)<NUM_LEDS) {
+          setPixel(i+j+1, 0, 0, 0);
+        }
+      }
+      i--;
     }
-    setPixel(NUM_LEDS - 1, 0, 0, 0);
-    kittCount2++;
-    if (kittCount2 == NUM_LEDS - eyeSize) {
-      kittCount2 = 0;
-      kittState = 2;
-    }
-  }
-  else if (kittState == 2) {
-    for (byte i = NUM_LEDS - 1; i > 0; i--) {
-      leds[i].r = leds[i - 1].r;
-      leds[i].g = leds[i - 1].g;
-      leds[i].b = leds[i - 1].b;
-      leds[NUM_LEDS - 1 - i].r = leds[i - 1].r;
-      //leds[NUM_LEDS-1-i].r = leds[i-1].r;
-      //leds[NUM_LEDS-1-i].g = leds[i-1].g;
-      //leds[NUM_LEDS-1-i].b = leds[i-1].b;
-    }
-    setPixel(0, 0, 0, 0);
-    kittCount2++;
-    if (kittCount2 == NUM_LEDS / 2 - eyeSize) {
-      kittCount2 = 0;
-      kittState = 3;
+    else {
+      p3_state = RIGHT;
+      i+=LEN;
+      l_count++;
+      if(l_count == REP) {
+        l_count = 0;
+        p3_state = MIDDLE;
+        i = i-(LEN-1);
+      }
     }
   }
-  else if (kittState == 3) {
-
-  }/*
-  Serial.print("State: ");
-  Serial.print(kittState);
-  Serial.print("- COUNT: ");
-  Serial.print(kittCount);
-  Serial.print("- COUNT2: ");
-  Serial.print(kittCount2);
-  Serial.println();*/
+  else if (p3_state == MIDDLE) {
+    static bool mid_dir = true;
+    static bool turn = true;
+    if(mid_dir) {
+      if(i<(NUM_LEDS/2)) {
+        for(int16_t j = 0; j < LEN/2; j++) {
+          if((i-j)>=0) {
+            setPixel(i-j, red, green, blue);
+            setPixel(NUM_LEDS-1-(i-j), red, green, blue);
+          }
+          if((i-j-1)>=0) {
+            setPixel(i-j-1, 0, 0, 0);
+            setPixel(NUM_LEDS-1-(i-j-1), 0, 0, 0);
+          }
+         }
+        i++;
+      }
+      else mid_dir = false;  
+    }
+    else {
+      if(i>=0) {
+        for(int16_t j = 0; j < LEN/2; j++) {
+          if((i+j)<NUM_LEDS) {
+            setPixel(i+j, red, green, blue);
+            setPixel(NUM_LEDS-1-(i+j), red, green, blue);
+          }
+          if((i+j+1)<NUM_LEDS) {
+            setPixel(i+j+1, 0, 0, 0);
+            setPixel(NUM_LEDS-1-(i+j+1), 0, 0, 0);
+          }
+        }
+        i--;
+      }
+      else {
+        mid_dir = true;
+        turn = !turn;
+        if(turn) {
+          p3_state = LEFT;
+          for(int16_t j = 0; j<LEN/2; j++) { // Fix
+            setPixel(0+j, 0, 0, 0);
+          }
+          i = NUM_LEDS-1;
+          l_count = -1;
+        }
+        else {
+          p3_state = RIGHT;
+          for(int16_t j = 0; j<LEN/2; j++) { // Fix
+            setPixel(NUM_LEDS-1-j, 0, 0, 0);
+          }
+          i = 0;
+        }
+      }
+    }
+  }
+}
 }
 
 void cleanVar() {
@@ -580,16 +639,16 @@ void update_bt() {
   static byte colorRGB_aux[3] = {};
   while (btSerial.available()) {
     buff = btSerial.read();
-    /*Serial.print(" // BUFF: ");
+    Serial.print(" // BUFF: ");
     Serial.print(buff);
-    Serial.println("");*/
+    Serial.println("");
     if (buff == '#') {
       code = "";
       bt = LEIDO;
     }
     else if (buff == '$') {
-      //Serial.print("Code: ");
-      //Serial.println(code);
+      Serial.print("Code: ");
+      Serial.println(code);
       bt = SIN_LEER;
       break;
     }
@@ -649,9 +708,9 @@ void update_state() {
   else if (code == "mi") state = MIRROR;
   else if (code == "kt") state = KITT;
   else if (code == "fs") state = FLASH;
-  else if (code == "l+" && (FastLED.getBrightness() <= 225)) FastLED.setBrightness(FastLED.getBrightness() + 30);
-  else if (code == "l-" && (FastLED.getBrightness() >= 31)) FastLED.setBrightness(FastLED.getBrightness() - 30);
-  else if (code == "l0") FastLED.setBrightness(255);
+  else if (code == "l+" && (get_brightness() <= 225)) set_brightness(get_brightness() + 30);
+  else if (code == "l-" && (get_brightness() >= 31)) set_brightness(get_brightness() - 30);
+  else if (code == "l0") set_brightness(255);
   else if (code == "p-" && (timer2_ticks <= 45)) timer2_ticks += 5;
   else if (code == "p+" && (timer2_ticks >= 10)) timer2_ticks -= 5;
   else if (code == "p0") timer2_ticks = 10;
@@ -701,6 +760,27 @@ void setAll(byte red, byte green, byte blue) {
   }
 }
 
+byte get_brightness() {
+  #ifdef ADAFRUIT_NEOPIXEL_H
+    // NeoPixel
+    return strip.getBrightness();
+  #endif
+  #ifndef ADAFRUIT_NEOPIXEL_H
+    // FastLED
+    return FastLED.getBrightness();
+  #endif
+}
+
+void set_brightness(byte brightness) {
+  #ifdef ADAFRUIT_NEOPIXEL_H
+    // NeoPixel
+    strip.setBrightness(brightness);
+  #endif
+  #ifndef ADAFRUIT_NEOPIXEL_H
+    // FastLED
+    FastLED.setBrightness(brightness);
+  #endif
+}
 
 ///////////////
 // Gamma Hue //
