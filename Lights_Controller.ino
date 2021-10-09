@@ -1,5 +1,6 @@
 /* Optimizaciones:
  *  CRITICOS:
+ *  0 - SIN SERIAL PRINTS EL PROGRAMA NO ANDA ????
  *  1 - sacar todos los serial print
  *  2 - cambiar el bt a un hardware serial
  *  LEVES:
