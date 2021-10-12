@@ -42,10 +42,6 @@ void leds_init();
 void timer2_init();
 
 
-// Posiblemente no van en version final
-void cleanVar();
-
-
 // Funciones
 void update_bt();
 void update_state();
@@ -59,6 +55,7 @@ void rainbow_cycle(byte colorVel = 1, byte moveVel = 0);
 void mirror();
 void flash(byte red, byte green, byte blue, byte flashON = 2, byte flashOFF = 1, byte times = 5, byte timeOFF = 50);
 void kitt (byte red, byte green, byte blue, byte LEN = 6, uint8_t speedDelay = 0, uint8_t vel = 1);
+void theater_rainbow(byte colorVel = 1, byte moveVel = 0);
 
 // Drivers
 void showStrip();
@@ -92,9 +89,9 @@ void set_brightness(byte brightness);
 #define OFF 90
 
 // Variables Globales
-byte colorRGB[3] = {255, 0, 0};
+byte colorRGB[3] = {255, 0, 1};
 byte ant_colorRGB[3] = {0, 0, 0};
-uint8_t state = REST;
+uint8_t state = ORBITAL_2;
 uint8_t timer2_ticks = 10;                  // Frecuencia de actualizacion (1 ~ 1ms)
 uint16_t timer2_count = 0;
 boolean timer2_flag = false;
@@ -196,13 +193,16 @@ void update_leds() {
       rainbow();
       break;
     case RAINBOW_CYCLE:
-      rainbow_cycle(13, 2);
+      rainbow_cycle(13, 3);
       break;
     case KITT:
       kitt(colorRGB[0], colorRGB[1], colorRGB[2], 6, 0, 1);
       break;
     case OFF:
       setAll(0, 0, 0);
+      break;
+    case THEATER_RAINBOW:
+      theater_rainbow(10, 2);
       break;
     default:
       state = REST;
@@ -268,104 +268,95 @@ void orbital_1(byte red, byte green, byte blue, byte background) {
 }
 
 
-uint8_t auxR = 0;
-uint8_t auxG = 0;
-uint8_t auxB = 0;
-uint16_t i = 0;
-uint8_t stateOrb = 0;
-uint16_t orbCont = 0;
-uint16_t orbDel = 0;
-#define ORB_VEL 2
-#define ORB_DEL NUM_LEDS*ORB_VEL
+// ORBITAL_2
+// Posibles mejoras: poder seleccionar para que lado ir, tiempo de full encendido, control de tamanio del degrade
 void orbital_2(uint8_t red, uint8_t green, uint8_t blue) {
-
-  if (auxR == red && auxG == green && auxB == blue && !stateOrb) stateOrb = 2;
-  else if ( !auxR && !auxG && !auxB && stateOrb == 1) stateOrb = 2;
-
-  while (orbCont < ORB_VEL) {
-    if (stateOrb == 0) {
-      if (auxR < red) auxR++;
-      else if (auxR > red) auxR--;
-
-      if (auxG < green) auxG++;
-      else if (auxG > green) auxG--;
-
-      if (auxB < blue) auxB++;
-      else if (auxB > blue) auxB--;
-    }
-    else if (stateOrb == 1) {
-      if (auxR) auxR--;
-      if (auxG) auxG--;
-      if (auxB) auxB--;
-    }
-    else if (stateOrb == 2) {
-      if (orbDel == ORB_DEL) {
-        orbDel = 0;
-        if (!auxR && !auxG && !auxB) stateOrb = 0;
-        else stateOrb = 1;
+  static uint8_t o2_state = 0;
+  static uint16_t o2_count = 0;
+  static byte auxR = 0, auxG = 0, auxB = 0;
+  static byte auxR2 = 0, auxG2 = 0, auxB2 = 0;
+  for(uint8_t j = 0; j < 2; j++) {
+    if(!o2_state) {
+      if( (auxR==red) && (auxG==green) && (auxB==blue)) o2_count++;
+      if(auxR < red) auxR++;
+      if(auxG < green) auxG++;
+      if(auxB < blue) auxB++;
+      auxR2 = auxR;
+      auxG2 = auxG;
+      auxB2 = auxB;
+      for(uint16_t i = o2_count; i < NUM_LEDS; i++) {
+        setPixel(i, auxR, auxG, auxB);
+        if(i==(NUM_LEDS-1) && (auxR == red) && (auxG == green) && (auxB == blue)) {
+          o2_count = 0;
+          o2_state = 1;
+        }
+        if(auxR) auxR--;
+        if(auxG) auxG--;
+        if(auxB) auxB--;
       }
-      orbDel++;
+      auxR = auxR2;
+      auxG = auxG2;
+      auxB = auxB2;
     }
-    orbCont++;
+    else if (o2_state == 1) {
+      if(auxR) auxR--;
+      if(auxG) auxG--;
+      if(auxB) auxB--;
+      if(!auxR && !auxG && !auxB) o2_count++;
+      auxR2 = auxR;
+      auxG2 = auxG;
+      auxB2 = auxB;
+      for(uint16_t i = o2_count; i < NUM_LEDS; i++) {
+        setPixel(i, auxR, auxG, auxB);
+        if(i==(NUM_LEDS-1) && !auxR && !auxG && !auxB ) {
+          o2_count = 0;
+          o2_state = 0;
+        }
+        if(auxR<red) auxR++;
+        if(auxG<green) auxG++;
+        if(auxB<blue) auxB++;
+      }
+      auxR = auxR2;
+      auxG = auxG2;
+      auxB = auxB2;
+    }
   }
-  orbCont = 0;
-  //Serial.print("STATEORB: ");
-  //Serial.print(stateOrb);
-  //Serial.print(" AUXR: ");
-  //Serial.print(auxR);
-  //Serial.print(" AUXG: ");
-  //Serial.print(auxG);
-  //Serial.print(" AUXB: ");
-  //Serial.print(auxB);
-  //Serial.print(" orbdel: ");
-  //Serial.println(orbDel);
-
-  tira_r[0] = auxR;
-  tira_g[0] = auxG;
-  tira_b[0] = auxB;
-
-  i = NUM_LEDS - 1;
-  while (i > 0) {
-    tira_r[i] = tira_r[i - 1];
-    tira_g[i] = tira_g[i - 1];
-    tira_b[i] = tira_b[i - 1];
-    i--;
-  }
-
 }
 
 
-uint8_t mirrorPos = NUM_LEDS / 2;
-uint8_t mirrorColor[3] = {};
-uint8_t set = 0;
-uint8_t coloresR[] = {255, 0, 0, 255, 0, 255};
-uint8_t coloresG[] = {0, 255, 0, 255, 255, 0};
-uint8_t coloresB[] = {0, 0, 255, 0, 255, 255};
-int8_t mirrorDir = -1;
+
 void mirror() {
+  static byte mir_r[NUM_LEDS] = {};
+  static byte mir_g[NUM_LEDS] = {};
+  static byte mir_b[NUM_LEDS] = {};
   static uint16_t mirrorPos = 0;
+  //static uint8_t mirrorPos = NUM_LEDS / 2;
+  static uint8_t mirrorColor[3] = {};
+  static uint8_t set = 0;
+  static uint8_t coloresR[] = {255, 0, 0, 255, 0, 255};
+  static uint8_t coloresG[] = {0, 255, 0, 255, 255, 0};
+  static uint8_t coloresB[] = {0, 0, 255, 0, 255, 255};
+  static int8_t mirrorDir = -1;
   //(byte)NUM_LEDS/2;
   /*
   if (mirrorPos < (byte)NUM_LEDS/2) {
     for (uint16_t i = 0; i <
   }*/
   
-  
   if (mirrorPos > 0 && mirrorPos <= NUM_LEDS / 2) {
-    tira_r[mirrorPos] = mirrorColor[0];
-    tira_g[mirrorPos] = mirrorColor[1];
-    tira_b[mirrorPos] = mirrorColor[2];
-    tira_r[NUM_LEDS - mirrorPos] = mirrorColor[0];
-    tira_g[NUM_LEDS - mirrorPos] = mirrorColor[1];
-    tira_b[NUM_LEDS - mirrorPos] = mirrorColor[2];
-    mirrorPos += mirrorDir;
+    mir_r[mirrorPos] = mirrorColor[0];
+    mir_g[mirrorPos] = mirrorColor[1];
+    mir_b[mirrorPos] = mirrorColor[2];
+    mir_r[NUM_LEDS - mirrorPos] = mirrorColor[0];
+    mir_g[NUM_LEDS - mirrorPos] = mirrorColor[1];
+    mir_b[NUM_LEDS - mirrorPos] = mirrorColor[2];
     //Serial.print("mirrorPos: ");
     //Serial.print(mirrorPos);
     //Serial.println("CHAU");
     if (!mirrorPos) {
-      tira_r[mirrorPos] = mirrorColor[0];
-      tira_g[mirrorPos] = mirrorColor[1];
-      tira_b[mirrorPos] = mirrorColor[2];
+      mir_r[mirrorPos] = mirrorColor[0];
+      mir_g[mirrorPos] = mirrorColor[1];
+      mir_b[mirrorPos] = mirrorColor[2];
     }
   }
   else if (!mirrorPos || mirrorPos >= NUM_LEDS / 2) {
@@ -377,12 +368,14 @@ void mirror() {
     mirrorColor[0] = coloresR[set];
     mirrorColor[1] = coloresG[set];
     mirrorColor[2] = coloresB[set];
-    tira_r[mirrorPos] = mirrorColor[0];
-    tira_g[mirrorPos] = mirrorColor[1];
-    tira_b[mirrorPos] = mirrorColor[2];
+    mir_r[mirrorPos] = mirrorColor[0];
+    mir_g[mirrorPos] = mirrorColor[1];
+    mir_b[mirrorPos] = mirrorColor[2];
     mirrorDir *= -1;
-    mirrorPos += mirrorDir;
   }
+  setPixel(mirrorPos, mir_r[mirrorPos], mir_g[mirrorPos], mir_b[mirrorPos]);
+  setPixel(NUM_LEDS-mirrorPos, mir_r[NUM_LEDS-mirrorPos], mir_g[NUM_LEDS-mirrorPos], mir_b[NUM_LEDS-mirrorPos]);
+  mirrorPos += mirrorDir;
 }
 
 
@@ -471,6 +464,48 @@ void update_rainbow(byte *red, byte *green, byte *blue) {
   if (r_estado == D_GREEN) {
     if (!(*green)) r_estado = RED;
     else (*green)--;
+  }
+}
+
+
+// UPDATE_RAINBOW v2
+void update_rainbowv2(byte *red, byte *green, byte *blue) {
+  #define RED     0
+  #define D_RED   1
+  #define GREEN   2
+  #define D_GREEN 3
+  #define BLUE    4
+  #define D_BLUE  5
+  uint8_t r_estado = RED;
+  if( (*red)<255 && !(*green) && (*blue)==255) r_estado == RED;
+  else if ( (*red)==255 && !(*green) && (*blue)<255 && (*blue) ) r_estado = D_BLUE;
+  else if ( (*red)==255 && (*green)<255 && !(*blue) ) r_estado = GREEN;
+  else if ( (*red)<255 && (*green)==255 && !(*blue) && (*red)) r_estado = D_RED;
+  else if ( !(*red) && (*green)==255 && (*blue)<255 ) r_estado = BLUE;
+  else if ( !(*red) && (*green)<255 && (*blue)==255 && (*green)) r_estado = D_GREEN;
+  if (r_estado == RED) {
+    (*red)++;
+    if ((*red) == 255) (*blue)--;
+  }
+  if (r_estado == D_BLUE) {
+    (*blue)--;
+    if (!(*blue)) (*green)++;
+  }
+  if (r_estado == GREEN) {
+    (*green)++;
+    if ((*green) == 255) (*red)--;
+  }
+  if (r_estado == D_RED) {
+    (*red)--;
+    if (!(*red)) (*blue)++;
+  }
+  if (r_estado == BLUE) {
+    (*blue)++;
+    if ((*blue) == 255) (*green)--;
+  }
+  if (r_estado == D_GREEN) {
+    (*green)--;
+    if (!(*green)) (*red)++;
   }
 }
 
@@ -609,20 +644,63 @@ for(uint8_t x = 0; x < vel; x++) {
 }
 }
 
-void cleanVar() {
-  tira_r[NUM_LEDS] = {};
-  tira_g[NUM_LEDS] = {};
-  tira_b[NUM_LEDS] = {};
-  mirrorPos = NUM_LEDS / 2;
-  set = 0;
-  mirrorDir = -1;
-  auxR = 0;
-  auxG = 0;
-  auxB = 0;
-  i = 0;
-  stateOrb = 0;
-  orbCont = 0;
-  orbDel = 0;
+
+byte sen(byte x) {
+  if(x%5) {
+    return 0;
+  }
+  else return 1;
+}
+
+void theater_rainbow(byte colorVel, byte moveVel) {
+  /*static byte red = 255, green = 0, blue = 0;  
+  static int Position=0;
+      Position++;
+      for(int i=0; i<NUM_LEDS; i++) {
+        for (uint16_t i = 0; i < 2; i++) {
+          update_rainbow(&red, &green, &blue);
+        }
+        setPixel(i,((sin(i+Position) * 127 + 128)/255)*red,
+                   ((sin(i+Position) * 127 + 128)/255)*green,
+                   ((sin(i+Position) * 127 + 128)/255)*blue);
+                   //Serial.print("TH: ");
+                   //Serial.println(((sin(i+Position) * 127 + 128)/255)*red);
+      }
+  return;*/
+  static byte red = 255, green = 0, blue = 1;
+  static byte auxRed = 0, auxGreen = 0, auxBlue = 0;
+  static uint16_t cycleCount = 0;
+  static int Position=0;
+  Position++;
+  if (cycleCount == moveVel) {
+    cycleCount = 0;
+    for (uint16_t j = 0; j < NUM_LEDS; j++) {
+      for (uint16_t i = 0; i < colorVel; i++) {
+        update_rainbowv2(&red, &green, &blue);
+      }
+      if (!j) {
+        auxRed = red;
+        auxGreen = green;
+        auxBlue = blue;
+      }
+      /*
+      setPixel(j,((sin(j+Position) * 127 + 128)/255)*red,
+                 ((sin(j+Position) * 127 + 128)/255)*green,
+                 ((sin(j+Position) * 127 + 128)/255)*blue);
+                 */
+      //*
+      setPixel(j,sen(j+Position)*red,
+                 sen(j+Position)*green,
+                 sen(j+Position)*blue);
+       //          */
+    }
+    red = auxRed;
+    green = auxGreen;
+    blue = auxBlue;
+  }
+  else {
+    cycleCount++;
+  }
 }
 
 
@@ -705,7 +783,7 @@ void update_state() {
   else if (code == "as") state = RAINBOW;
   else if (code == "ac") state = RAINBOW_CYCLE;
   else if (code == "o1") state = ORBITAL_1;
-  else if (code == "o2") state = ORBITAL_2;
+  else if (code == "th") state = THEATER_RAINBOW;
   else if (code == "mi") state = MIRROR;
   else if (code == "kt") state = KITT;
   else if (code == "fs") state = FLASH;
@@ -716,9 +794,7 @@ void update_state() {
   else if (code == "p+" && (timer2_ticks >= 10)) timer2_ticks -= 5;
   else if (code == "p0") timer2_ticks = 10;
   bt = LEIDO;
-  cleanVar();
 }
-
 
 /////////////
 // DRIVERS //
