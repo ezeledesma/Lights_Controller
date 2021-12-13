@@ -91,7 +91,7 @@ void set_brightness(byte brightness);
 // Variables Globales
 byte colorRGB[3] = {255, 0, 1};
 byte ant_colorRGB[3] = {0, 0, 0};
-uint8_t state = ORBITAL_2;
+uint8_t state = REST;
 uint8_t timer2_ticks = 10;                  // Frecuencia de actualizacion (1 ~ 1ms)
 uint16_t timer2_count = 0;
 boolean timer2_flag = false;
@@ -783,6 +783,7 @@ void update_state() {
   else if (code == "as") state = RAINBOW;
   else if (code == "ac") state = RAINBOW_CYCLE;
   else if (code == "o1") state = ORBITAL_1;
+  else if (code == "o2") state = ORBITAL_2;
   else if (code == "th") state = THEATER_RAINBOW;
   else if (code == "mi") state = MIRROR;
   else if (code == "kt") state = KITT;
